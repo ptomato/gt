@@ -28,9 +28,11 @@ AC_SUBST([GT_API_VERSION],[_GT_API_VERSION_MACRO])
 dnl Required files and programs
 dnl ---------------------------
 AC_REQUIRE_AUX_FILE([tap-driver.sh])
+AC_PROG_SED
 AM_PROG_VALAC
 LT_INIT
 PKG_PROG_PKG_CONFIG
+GOBJECT_INTROSPECTION_REQUIRE([1])
 AC_PATH_PROG([GIO_QUERYMODULES], [gio-querymodules])
 
 dnl Required libraries
