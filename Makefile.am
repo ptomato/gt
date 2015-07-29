@@ -14,6 +14,7 @@ MAINTAINERCLEANFILES = \
 	INSTALL \
 	tap-driver.sh \
 	$(NULL)
+GITIGNOREFILES = doc
 
 ## Build rules
 ## -----------
@@ -29,7 +30,6 @@ libgt_@GT_API_VERSION@_la_VALAFLAGS = \
 	-H gt.h \
 	--vapi gt-@GT_API_VERSION@.vapi \
 	--library Gt \
-	--gir Gt-@GT_API_VERSION@.gir \
 	$(NULL)
 libgt_@GT_API_VERSION@_la_LDFLAGS = -version-info @GT_LT_VERSION@ $(AM_LDFLAGS)
 BUILT_SOURCES = gt.h
@@ -60,13 +60,17 @@ INTROSPECTION_GIRS =
 INTROSPECTION_SCANNER_ARGS =
 INTROSPECTION_COMPILER_ARGS = -l $(dlname)
 
-Gt-@GT_API_VERSION@.gir: libgt-@GT_API_VERSION@.la
+Gt-@GT_API_VERSION@.gir: $(libgt_@GT_API_VERSION@_la_SOURCES)
+	$(AM_V_GEN)$(RM) -r doc && \
+	$(VALADOC) -o doc @GT_PACKAGES@ --gir $@ $^
 GIRS = Gt-@GT_API_VERSION@.gir
 
 girdir = $(datadir)/gir-1.0
 dist_gir_DATA = $(GIRS)
 
 CLEANFILES += $(dist_gir_DATA)
+clean-local:
+	$(RM) -r doc
 
 typelibdir = $(libdir)/girepository-1.0
 nodist_typelib_DATA = $(GIRS:.gir=.typelib)

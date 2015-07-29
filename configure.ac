@@ -34,6 +34,7 @@ LT_INIT
 PKG_PROG_PKG_CONFIG
 GOBJECT_INTROSPECTION_REQUIRE([1])
 AC_PATH_PROG([GIO_QUERYMODULES], [gio-querymodules])
+AC_PATH_PROG([VALADOC], [valadoc])
 
 dnl Required libraries
 dnl ------------------

@@ -17,6 +17,52 @@
  */
 
 namespace Gt {
+/**
+ * Mock file object for tests
+ *
+ * GIO provides a mock file object for use in [test cases][glib-Testing].
+ * Use this when writing unit tests for GObject code that reads or writes files.
+ * Using a mock file object allows you to test your file-accessing code against
+ * a lightweight, in-memory file, rather than painstakingly setting up and
+ * tearing down a test fixture on disk.
+ *
+ * This allows your unit tests to
+ * [[https://pragprog.com/magazines/2012-01/unit-tests-are-first|run faster]]
+ * and guards against inadvertent test pollution when, for example, a test
+ * aborts without cleaning up its file fixtures.
+ *
+ * Mock file objects are, for the most part, indistinguishable from real #GFile
+ * objects.
+ * They implement a subset of the functionality of on-disk files: currently
+ * reading and writing.
+ *
+ * Mock files are particularly useful when unit-testing a function that takes a
+ * #GFile argument, or a GObject class into which you can dependency-inject a
+ * #GFile object.
+ * Here's a nonsensical code snippet:
+ *
+ * {{{<!--language="C"-->
+ * void
+ * setup (Fixture *fixture, gconstpointer data)
+ * {
+ *     fixture->file = g_mock_file_new ();
+ * }
+ *
+ * void
+ * test_count_owls (Fixture *fixture, gconstpointer data)
+ * {
+ *     g_mock_file_set_contents_utf8 (fixture->file, "owl owl owl owl owl");
+ *     int owls = count_owls (fixture->file);
+ *     g_assert_cmpint (owls, ==, 5);
+ * }
+ *
+ * void
+ * teardown (Fixture *fixture, gconstpointer data)
+ * {
+ *     g_object_unref (fixture->file);
+ * }
+ * }}}
+ */
 public class MockFile : Object, File {
     private static const string URI_SCHEME = "gt-mock";
 
@@ -30,8 +76,22 @@ public class MockFile : Object, File {
 
     /* Constructors */
 
+    /**
+     * Creates a new mock file object for use in tests.
+     * This file starts out empty by default and has no name.
+     *
+     * @return the new #GMockFile
+     */
     public MockFile() {}
 
+    /**
+     * Creates a new mock file object with a particular internal ID.
+     * This constructor is only needed when the output of gt_mock_file_get_uri()
+     * must be repeatable.
+     * You should not normally use it in your tests.
+     *
+     * @return the new #GMockFile
+     */
     public MockFile.with_id(string id) {
         this.id = id;
     }
@@ -469,8 +529,31 @@ public class MockFile : Object, File {
 
     /* Public, non-GFile API */
 
+    /**
+     * Directly accesses the contents of the mock file.
+     *
+     * While the contents can be read and written using any of the usual #GFile
+     * methods such as g_file_load_contents() and g_file_replace_contents(),
+     * this allows you to easily set up a mock file in your tests' setup method
+     * and access its contents in your tests, for example in order to assert
+     * that something has been written to the file, without going through the
+     * I/O API.
+     */
     public Bytes contents { set; get; default = new Bytes(new uint8[0]); }
 
+    /**
+     * Like #GtMockFile:contents, but this property takes a nul-terminated UTF-8
+     * string instead of a byte array.
+     *
+     * Use this for convenience when setting up or making assertions about a
+     * mock text file.
+     *
+     * If you don't know whether the file contains a UTF-8 string, then you
+     * might want to use #GtMockFile:contents instead.
+     *
+     * This method makes a copy of the contents of the file, so if you expect
+     * the file to be huge, use #GtMockFile:contents instead.
+     */
     public string contents_utf8 {
         get {
             // get_data() can return null if length == 0
