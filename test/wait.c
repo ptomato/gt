@@ -23,6 +23,7 @@ wait mechanism */
 #include <glib.h>
 
 #include "gt.h"
+#include "gt-expect.h"
 
 /* GtChanger object that the tests will operate upon. Since it's a throwaway
 object, we try to keep the boilerplate to a minimum */
@@ -211,9 +212,10 @@ test_wait_signal_normal (Fixture      *fixture,
                          gconstpointer unused)
 {
   gt_changer_start (fixture->changer);
-  g_assert_true (gt_wait_for_signal (500, G_OBJECT (fixture->changer),
-                                     "notify::count", NULL, NULL));
-  g_assert_cmpuint (fixture->changer->count, ==, 1);
+  gboolean ok = gt_wait_for_signal (500, G_OBJECT (fixture->changer),
+                                    "notify::count", NULL, NULL);
+  gt_expect_bool (ok, TO_BE_TRUE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 1);
 }
 
 static void
@@ -226,19 +228,21 @@ static void
 test_wait_signal_immediate (Fixture      *fixture,
                             gconstpointer unused)
 {
-  g_assert_true (gt_wait_for_signal (200, G_OBJECT (fixture->changer),
-                                     "notify::count", (GtBlock) set_count_to_5,
-                                     fixture->changer));
-  g_assert_cmpuint (fixture->changer->count, ==, 5);
+  gboolean ok = gt_wait_for_signal (200, G_OBJECT (fixture->changer),
+                                    "notify::count", (GtBlock) set_count_to_5,
+                                    fixture->changer);
+  gt_expect_bool (ok, TO_BE_TRUE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 5);
 }
 
 static void
 test_wait_signal_fail (Fixture      *fixture,
                        gconstpointer unused)
 {
-  g_assert_false (gt_wait_for_signal (200, G_OBJECT (fixture->changer),
-                                      "notify::count", NULL, NULL));
-  g_assert_cmpuint (fixture->changer->count, ==, 0);
+  gboolean ok = gt_wait_for_signal (200, G_OBJECT (fixture->changer),
+                                    "notify::count", NULL, NULL);
+  gt_expect_bool (ok, TO_BE_FALSE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 0);
 }
 
 static gboolean
@@ -252,11 +256,11 @@ test_wait_condition_normal (Fixture      *fixture,
                             gconstpointer unused)
 {
   gt_changer_start (fixture->changer);
-  g_assert_true (gt_wait_for_condition (300, G_OBJECT (fixture->changer),
-                                        "notify::count",
-                                        (GtPredicate) count_is_2,
-                                        fixture->changer, NULL, NULL, NULL));
-  g_assert_cmpuint (fixture->changer->count, ==, 2);
+  gboolean ok = gt_wait_for_condition (300, G_OBJECT (fixture->changer),
+                                       "notify::count", (GtPredicate) count_is_2,
+                                       fixture->changer, NULL, NULL, NULL);
+  gt_expect_bool (ok, TO_BE_TRUE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 2);
 }
 
 static gboolean
@@ -269,11 +273,12 @@ static void
 test_wait_condition_immediate (Fixture      *fixture,
                                gconstpointer unused)
 {
-  g_assert_true (gt_wait_for_condition (200, G_OBJECT (fixture->changer),
-                                        "notify::count",
-                                        (GtPredicate) return_true, NULL, NULL,
-                                        NULL, NULL));
-  g_assert_cmpuint (fixture->changer->count, ==, 0);
+  gboolean ok = gt_wait_for_condition (200, G_OBJECT (fixture->changer),
+                                       "notify::count",
+                                       (GtPredicate) return_true, NULL, NULL,
+                                       NULL, NULL);
+  gt_expect_bool (ok, TO_BE_TRUE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 0);
 }
 
 static void
@@ -281,11 +286,11 @@ test_wait_condition_fail (Fixture      *fixture,
                           gconstpointer unused)
 {
   gt_changer_start (fixture->changer);
-  g_assert_false (gt_wait_for_condition (150, G_OBJECT (fixture->changer),
-                                         "notify::count",
-                                         (GtPredicate) count_is_2,
-                                         fixture->changer, NULL, NULL, NULL));
-  g_assert_cmpuint (fixture->changer->count, ==, 1);
+  gboolean ok = gt_wait_for_condition (150, G_OBJECT (fixture->changer),
+                                       "notify::count", (GtPredicate) count_is_2,
+                                       fixture->changer, NULL, NULL, NULL);
+  gt_expect_bool (ok, TO_BE_FALSE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 1);
 }
 
 static void
@@ -300,33 +305,36 @@ static void
 finish_changer_async (GAsyncResult *result,
                       Fixture      *fixture)
 {
-  g_assert_true (gt_changer_increment_finish (fixture->changer, result, NULL));
+  gt_expect_bool (gt_changer_increment_finish (fixture->changer, result, NULL),
+                  TO_BE_TRUE);
 }
 
 static void
 test_wait_async_normal (Fixture      *fixture,
                         gconstpointer unused)
 {
-  g_assert_true (gt_wait_for_async (150, (GtAsyncBegin) start_changer_async,
-                                    fixture->changer,
-                                    (GtAsyncFinish) finish_changer_async,
-                                    fixture));
-  g_assert_cmpuint (fixture->changer->count, ==, 1);
+  gboolean ok = gt_wait_for_async (150, (GtAsyncBegin) start_changer_async,
+                                   fixture->changer,
+                                   (GtAsyncFinish) finish_changer_async,
+                                   fixture);
+  gt_expect_bool (ok, TO_BE_TRUE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 1);
 }
 
 static void
 test_wait_async_fail (Fixture      *fixture,
                       gconstpointer unused)
 {
-  g_assert_false (gt_wait_for_async (10, (GtAsyncBegin) start_changer_async,
-                                     fixture->changer,
-                                     (GtAsyncFinish) finish_changer_async,
-                                     fixture));
+  gboolean ok = gt_wait_for_async (10, (GtAsyncBegin) start_changer_async,
+                                   fixture->changer,
+                                   (GtAsyncFinish) finish_changer_async,
+                                   fixture);
+  gt_expect_bool (ok, TO_BE_FALSE);
   // FIXME If it times out, the async function may run to completion when main
   // loop is entered again later.
   gt_changer_stop (fixture->changer);
 
-  g_assert_cmpuint (fixture->changer->count, ==, 0);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 0);
 }
 
 static void
@@ -342,24 +350,26 @@ static void
 test_wait_cancellable_async_normal (Fixture      *fixture,
                                     gconstpointer unused)
 {
-  g_assert_true (gt_wait_for_cancellable_async (150,
-                                                (GtCancellableAsyncBegin) start_changer_cancellable_async,
-                                                fixture->changer,
-                                                (GtAsyncFinish) finish_changer_async,
-                                                fixture));
-  g_assert_cmpuint (fixture->changer->count, ==, 1);
+  gboolean ok = gt_wait_for_cancellable_async (150,
+                                               (GtCancellableAsyncBegin) start_changer_cancellable_async,
+                                               fixture->changer,
+                                               (GtAsyncFinish) finish_changer_async,
+                                               fixture);
+  gt_expect_bool (ok, TO_BE_TRUE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 1);
 }
 
 static void
 test_wait_cancellable_async_fail (Fixture      *fixture,
                                   gconstpointer unused)
 {
-  g_assert_false (gt_wait_for_cancellable_async (10,
-                                                 (GtCancellableAsyncBegin) start_changer_cancellable_async,
-                                                 fixture->changer,
-                                                 (GtAsyncFinish) finish_changer_async,
-                                                 fixture));
-  g_assert_cmpuint (fixture->changer->count, ==, 0);
+  gboolean ok = gt_wait_for_cancellable_async (10,
+                                               (GtCancellableAsyncBegin) start_changer_cancellable_async,
+                                               fixture->changer,
+                                               (GtAsyncFinish) finish_changer_async,
+                                               fixture);
+  gt_expect_bool (ok, TO_BE_FALSE);
+  gt_expect_uint (fixture->changer->count, TO_EQUAL, 0);
 }
 
 int

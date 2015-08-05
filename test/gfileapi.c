@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "gt.h"
+#include "gt-expect.h"
 
 #define SAMPLE_UTF8_CONTENTS "My big sphinx of quartz"
 
@@ -149,8 +150,8 @@ teardown (Fixture      *fixture,
     assert_success_or_free_error (success, error); \
     if (success) \
       { \
-        g_assert (fixture->copy_progress_callback_called); \
-        g_assert (fixture->copy_progress_callback_called_complete); \
+        gt_expect_bool (fixture->copy_progress_callback_called, TO_BE_TRUE); \
+        gt_expect_bool (fixture->copy_progress_callback_called_complete, TO_BE_TRUE); \
       } \
   }
 
@@ -163,7 +164,7 @@ teardown (Fixture      *fixture,
     GFileAttributeInfoList *retval = g_file_##method (fixture->file, NULL, &error); \
     if (retval != NULL) \
       { \
-        g_assert_no_error (error); \
+        gt_expect_error (error, TO_BE_CLEAR); \
         g_file_attribute_info_list_unref (retval); \
       } \
     else \
@@ -202,13 +203,13 @@ assert_and_free_object_or_error (gpointer object,
 {
   if (object != NULL)
     {
-      g_assert (G_IS_OBJECT (object));
-      g_assert_no_error (error);
+      gt_expect_object (object, TO_BE_A, G_TYPE_OBJECT);
+      gt_expect_error (error, TO_BE_CLEAR);
       g_object_unref (object);
     }
   else
     {
-      g_assert_nonnull (error);
+      gt_expect_error (error, NOT TO_BE_CLEAR);
       g_error_free (error);
     }
 }
@@ -219,11 +220,11 @@ assert_success_or_free_error (gboolean success,
 {
   if (success)
     {
-      g_assert_no_error (error);
+      gt_expect_error (error, TO_BE_CLEAR);
     }
   else
     {
-      g_assert_nonnull (error);
+      gt_expect_error (error, NOT TO_BE_CLEAR);
       g_error_free (error);
     }
 }
@@ -248,8 +249,8 @@ on_async_assert_cancelled (GObject      *source,
   Fixture *fixture = (Fixture *)user_data;
   GError *error = NULL;
   GObject *retval = fixture->finish_func (fixture->file, res, &error);
-  g_assert_null (retval);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_object (retval, TO_BE_NULL);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_main_loop_quit (fixture->mainloop);
 }
 
@@ -273,8 +274,8 @@ on_async_assert_bool_cancelled (GObject      *source,
   Fixture *fixture = (Fixture *)user_data;
   GError *error = NULL;
   gboolean success = ((FileBoolFinishFunc)fixture->finish_func) (fixture->file, res, &error);
-  g_assert_false (success);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_bool (success, TO_BE_FALSE);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_main_loop_quit (fixture->mainloop);
 }
 
@@ -295,7 +296,7 @@ test_dup (Fixture      *fixture,
           gconstpointer unused)
 {
   GFile *dup = g_file_dup (fixture->file);
-  g_assert (GT_IS_MOCK_FILE (dup));
+  gt_expect_object (dup, TO_BE_A, GT_TYPE_MOCK_FILE);
   g_object_unref (dup);
 }
 
@@ -304,14 +305,14 @@ test_hash (Fixture      *fixture,
            gconstpointer unused)
 {
   guint hash = g_file_hash (fixture->file);
-  g_assert (hash != 0);
+  gt_expect_uint (hash, NOT TO_EQUAL, 0);
 }
 
 static void
 test_equal_yes (Fixture      *fixture,
                 gconstpointer unused)
 {
-  g_assert (g_file_equal (fixture->file, fixture->file));
+  gt_expect_file (fixture->file, TO_EQUAL, fixture->file);
 }
 
 static void
@@ -319,7 +320,7 @@ test_equal_no (Fixture      *fixture,
                gconstpointer unused)
 {
   GFile *file2 = G_FILE (gt_mock_file_new ());
-  g_assert_false (g_file_equal (fixture->file, file2));
+  gt_expect_file (fixture->file, NOT TO_EQUAL, file2);
   g_object_unref (file2);
 }
 
@@ -328,8 +329,8 @@ test_get_basename (Fixture      *fixture,
                    gconstpointer unused)
 {
   char *basename = g_file_get_basename (fixture->file);
-  g_assert_nonnull (basename);
-  g_assert (strlen (basename) != 0);
+  gt_expect_string (basename, NOT TO_BE_NULL);
+  gt_expect_string (basename, NOT TO_BE_EMPTY);
   g_free (basename);
 }
 
@@ -338,7 +339,8 @@ test_get_path (Fixture      *fixture,
                gconstpointer unused)
 {
   char *path = g_file_get_path (fixture->file);
-  g_assert (path == NULL || strlen (path) != 0);
+  if (path != NULL)
+    gt_expect_string (path, NOT TO_BE_EMPTY);
   g_free (path);
 }
 
@@ -347,8 +349,8 @@ test_get_uri (Fixture      *fixture,
               gconstpointer unused)
 {
   char *uri = g_file_get_uri (fixture->file);
-  g_assert_nonnull (uri);
-  g_assert_cmpstr (uri, !=, "");
+  gt_expect_string (uri, NOT TO_BE_NULL);
+  gt_expect_string (uri, NOT TO_BE_EMPTY);
   g_free (uri);
 }
 
@@ -357,8 +359,8 @@ test_get_parse_name (Fixture      *fixture,
                      gconstpointer unused)
 {
   char *parse_name = g_file_get_parse_name (fixture->file);
-  g_assert_nonnull (parse_name);
-  g_assert_cmpstr (parse_name, !=, "");
+  gt_expect_string (parse_name, NOT TO_BE_NULL);
+  gt_expect_string (parse_name, NOT TO_BE_EMPTY);
   g_free (parse_name);
 }
 
@@ -367,9 +369,10 @@ test_get_parent (Fixture      *fixture,
                  gconstpointer unused)
 {
   GFile *parent = g_file_get_parent (fixture->file);
-  g_assert (parent == NULL || g_file_has_parent (fixture->file, parent));
-  if (parent != NULL)
+  if (parent != NULL) {
+    gt_expect_file (fixture->file, TO_HAVE_PARENT, parent);
     g_object_unref (parent);
+  }
 }
 
 static void
@@ -384,7 +387,7 @@ test_has_parent_no (Fixture      *fixture,
                     gconstpointer unused)
 {
   GFile *not_parent = g_file_new_for_path ("foobar");
-  g_assert_false (g_file_has_parent (fixture->file, not_parent));
+  gt_expect_file (fixture->file, NOT TO_HAVE_PARENT, not_parent);
 }
 
 static void
@@ -392,11 +395,11 @@ test_get_child (Fixture      *fixture,
                 gconstpointer unused)
 {
   GFile *child = g_file_get_child (fixture->file, "foobar");
-  g_assert_nonnull (child);
+  gt_expect_file (child, NOT TO_BE_NULL);
   char *basename = g_file_get_basename (child);
-  g_assert_cmpstr (basename, ==, "foobar");
+  gt_expect_string (basename, TO_EQUAL, "foobar");
   g_free (basename);
-  g_assert (g_file_has_parent (child, fixture->file));
+  gt_expect_file (child, TO_HAVE_PARENT, fixture->file);
   g_object_unref (child);
 }
 
@@ -408,13 +411,13 @@ test_get_child_for_display_name (Fixture      *fixture,
   GFile *child = g_file_get_child_for_display_name (fixture->file, "foobar", &error);
   if (child != NULL)
     {
-      g_assert (g_file_has_parent (child, fixture->file));
+      gt_expect_file (child, TO_HAVE_PARENT, fixture->file);
       GFileInfo *info = g_file_query_info (child,
                                            G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME,
                                            G_FILE_QUERY_INFO_NONE, NULL, NULL);
       if (info != NULL) {
         const char *display_name = g_file_info_get_display_name (info);
-        g_assert_cmpstr (display_name, ==, "foobar");
+        gt_expect_string (display_name, TO_EQUAL, "foobar");
         g_object_unref (info);
       }
     }
@@ -426,7 +429,7 @@ test_has_prefix_not_related (Fixture      *fixture,
                              gconstpointer unused)
 {
   GFile *file2 = g_file_new_for_path ("foobar");
-  g_assert_false (g_file_has_prefix (fixture->file, file2));
+  gt_expect_file (fixture->file, NOT TO_HAVE_PREFIX, file2);
   /* g_file_has_prefix() may return false negatives, but not false positives */
   g_object_unref (file2);
 }
@@ -435,7 +438,7 @@ static void
 test_has_prefix_same_file (Fixture      *fixture,
                            gconstpointer unused)
 {
-  g_assert_true (g_file_has_prefix (fixture->file, fixture->file));
+  gt_expect_file (fixture->file, TO_HAVE_PREFIX, fixture->file);
 }
 
 static void
@@ -443,7 +446,7 @@ test_has_prefix_child (Fixture      *fixture,
                        gconstpointer unused)
 {
   GFile *child = g_file_get_child (fixture->file, "foobar");
-  g_assert_true (g_file_has_prefix (child, fixture->file));
+  gt_expect_file (child, TO_HAVE_PREFIX, fixture->file);
   g_object_unref (child);
 }
 
@@ -454,7 +457,7 @@ test_has_prefix_descendant (Fixture      *fixture,
   GFile *child1 = g_file_get_child (fixture->file, "foobar");
   GFile *child2 = g_file_get_child (child1, "baz");
   g_object_unref (child1);
-  g_assert_true (g_file_has_prefix (child2, fixture->file));
+  gt_expect_file (child2, TO_HAVE_PREFIX, fixture->file);
   g_object_unref (child2);
 }
 
@@ -463,7 +466,7 @@ test_has_prefix_parent (Fixture      *fixture,
                         gconstpointer unused)
 {
   GFile *parent = g_file_get_parent (fixture->file);
-  g_assert_true (g_file_has_prefix (fixture->file, parent));
+  gt_expect_file (fixture->file, TO_HAVE_PREFIX, parent);
   g_object_unref (parent);
 }
 
@@ -474,7 +477,7 @@ test_has_prefix_ancestor (Fixture      *fixture,
   GFile *parent1 = g_file_get_parent (fixture->file);
   GFile *parent2 = g_file_get_parent (parent1);
   g_object_unref (parent1);
-  g_assert_true (g_file_has_prefix (fixture->file, parent2));
+  gt_expect_file (fixture->file, TO_HAVE_PREFIX, parent2);
   g_object_unref (parent2);
 }
 
@@ -483,7 +486,7 @@ test_get_relative_path_not_related (Fixture      *fixture,
                                     gconstpointer unused)
 {
   GFile *file2 = g_file_new_for_path ("foobar");
-  g_assert_null (g_file_get_relative_path (fixture->file, file2));
+  gt_expect_string (g_file_get_relative_path (fixture->file, file2), TO_BE_NULL);
   g_object_unref (file2);
 }
 
@@ -492,8 +495,8 @@ test_get_relative_path_same_file (Fixture      *fixture,
                                   gconstpointer unused)
 {
   char *relative_path = g_file_get_relative_path (fixture->file, fixture->file);
-  g_assert_nonnull (relative_path);
-  g_assert_cmpstr (relative_path, ==, ".");
+  gt_expect_string (relative_path, NOT TO_BE_NULL);
+  gt_expect_string (relative_path, TO_EQUAL, ".");
   g_free (relative_path);
 }
 
@@ -504,8 +507,8 @@ test_get_relative_path_child (Fixture      *fixture,
   GFile *child = g_file_get_child (fixture->file, "foobar");
   char *relative_path = g_file_get_relative_path (fixture->file, child);
   g_object_unref (child);
-  g_assert_nonnull (relative_path);
-  g_assert_cmpstr (relative_path, ==, "foobar");
+  gt_expect_string (relative_path, NOT TO_BE_NULL);
+  gt_expect_string (relative_path, TO_EQUAL, "foobar");
   g_free (relative_path);
 }
 
@@ -518,8 +521,8 @@ test_get_relative_path_descendant (Fixture      *fixture,
   g_object_unref (child1);
   char *relative_path = g_file_get_relative_path (fixture->file, child2);
   g_object_unref (child2);
-  g_assert_nonnull (relative_path);
-  g_assert_cmpstr (relative_path, ==, "foobar/baz");
+  gt_expect_string (relative_path, NOT TO_BE_NULL);
+  gt_expect_string (relative_path, TO_EQUAL, "foobar/baz");
   g_free (relative_path);
 }
 
@@ -531,8 +534,8 @@ test_get_relative_path_parent (Fixture      *fixture,
   GFile *parent = g_file_get_parent (fixture->file);
   char *relative_path = g_file_get_relative_path (parent, fixture->file);
   g_object_unref (parent);
-  g_assert_nonnull (relative_path);
-  g_assert_cmpstr (relative_path, ==, "foobar");
+  gt_expect_string (relative_path, NOT TO_BE_NULL);
+  gt_expect_string (relative_path, TO_EQUAL, "foobar");
   g_free (relative_path);
 }
 
@@ -547,8 +550,8 @@ test_get_relative_path_ancestor (Fixture      *fixture,
   g_object_unref (parent1);
   char *relative_path = g_file_get_relative_path (parent2, fixture->file);
   g_object_unref (parent2);
-  g_assert_nonnull (relative_path);
-  g_assert_cmpstr (relative_path, ==, "baz/foobar");
+  gt_expect_string (relative_path, NOT TO_BE_NULL);
+  gt_expect_string (relative_path, TO_EQUAL, "baz/foobar");
   g_free (relative_path);
 }
 
@@ -557,7 +560,7 @@ test_resolve_relative_path_same_file (Fixture      *fixture,
                                       gconstpointer unused)
 {
   GFile *file = g_file_resolve_relative_path (fixture->file, ".");
-  g_assert (g_file_equal (fixture->file, file));
+  gt_expect_file (fixture->file, TO_EQUAL, file);
   g_object_unref (file);
 }
 
@@ -567,7 +570,8 @@ test_resolve_relative_path_parent (Fixture      *fixture,
 {
   GFile *file = g_file_resolve_relative_path (fixture->file, "..");
   GFile *parent = g_file_get_parent (fixture->file);
-  g_assert (file == NULL && parent == NULL || g_file_equal (file, parent));
+  if (file != NULL && parent != NULL)
+    gt_expect_file (file, TO_EQUAL, parent);
   if (file != NULL)
     g_object_unref (file);
   if (parent != NULL)
@@ -580,7 +584,7 @@ test_resolve_relative_path_child (Fixture      *fixture,
 {
   GFile *file = g_file_resolve_relative_path (fixture->file, "foobar");
   GFile *child = g_file_get_child (fixture->file, "foobar");
-  g_assert (g_file_equal (file, child));
+  gt_expect_file (file, TO_EQUAL, child);
   g_object_unref (file);
   g_object_unref (child);
 }
@@ -604,7 +608,7 @@ test_get_uri_scheme (Fixture      *fixture,
                      gconstpointer unused)
 {
   char *scheme = g_file_get_uri_scheme (fixture->file);
-  g_assert_nonnull (scheme);
+  gt_expect_string (scheme, NOT TO_BE_NULL);
   g_free (scheme);
 }
 
@@ -641,9 +645,9 @@ measure_disk_usage_progress_callback (gboolean reporting,
   fixture->measure_disk_usage_progress_callback_called = TRUE;
   if (reporting)
     {
-      g_assert_cmpuint (current_size, ==, 0);
-      g_assert_cmpuint (num_dirs, ==, 0);
-      g_assert_cmpuint (num_files, ==, 0);
+      gt_expect_uint (current_size, TO_EQUAL, 0);
+      gt_expect_uint (num_dirs, TO_EQUAL, 0);
+      gt_expect_uint (num_files, TO_EQUAL, 0);
     }
 }
 
@@ -658,7 +662,7 @@ test_measure_disk_usage (Fixture      *fixture,
                                                 &error);
   assert_success_or_free_error (success, error);
   if (success)
-    g_assert (fixture->measure_disk_usage_progress_callback_called);
+    gt_expect_bool (fixture->measure_disk_usage_progress_callback_called, TO_BE_TRUE);
 }
 
 static void
@@ -672,7 +676,7 @@ on_async_measure_disk_usage_assert (GObject      *source,
                                                        &error);
   assert_success_or_free_error (success, error);
   if (success)
-    g_assert (fixture->measure_disk_usage_progress_callback_called);
+    gt_expect_bool (fixture->measure_disk_usage_progress_callback_called, TO_BE_TRUE);
   g_main_loop_quit (fixture->mainloop);
 }
 
@@ -695,8 +699,8 @@ on_async_measure_disk_usage_assert_cancelled (GObject      *source,
   gboolean success = g_file_measure_disk_usage_finish (fixture->file, res,
                                                        NULL, NULL, NULL, /* out params */
                                                        &error);
-  g_assert_false (success);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_bool (success, TO_BE_FALSE);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_error_free (error);
   g_main_loop_quit (fixture->mainloop);
 }
@@ -729,8 +733,8 @@ on_async_copy_assert (GObject      *source,
   assert_success_or_free_error (success, error);
   if (success)
     {
-      g_assert (fixture->copy_progress_callback_called);
-      g_assert (fixture->copy_progress_callback_called_complete);
+      gt_expect_bool (fixture->copy_progress_callback_called, TO_BE_TRUE);
+      gt_expect_bool (fixture->copy_progress_callback_called_complete, TO_BE_TRUE);
     }
   g_main_loop_quit (fixture->mainloop);
 }
@@ -753,8 +757,8 @@ on_async_copy_assert_cancelled (GObject      *source,
 {
   GError *error = NULL;
   gboolean success = g_file_copy_finish (fixture->file, res, &error);
-  g_assert_false (success);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_bool (success, TO_BE_FALSE);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_error_free (error);
   g_main_loop_quit (fixture->mainloop);
 }
@@ -826,8 +830,8 @@ on_async_set_attributes_assert_cancelled (GObject      *source,
   GError *error = NULL;
   GFileInfo *info = NULL;
   gboolean success = g_file_set_attributes_finish (fixture->file, res, &info, &error);
-  g_assert_false (success);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_bool (success, TO_BE_FALSE);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_error_free (error);
   g_object_unref (info);
   g_main_loop_quit (fixture->mainloop);
@@ -917,9 +921,9 @@ test_load_contents (Fixture      *fixture,
   assert_success_or_free_error (success, error);
   if (success)
     {
-      g_assert_nonnull (contents);
-      g_assert_cmpint (length, >=, strlen (contents));
-      g_assert_nonnull (etag);
+      gt_expect_string (contents, NOT TO_BE_NULL);
+      gt_expect_int (length, NOT TO_BE_LESS_THAN, strlen (contents));
+      gt_expect_string (etag, NOT TO_BE_NULL);
       g_free (contents);
       g_free (etag);
     }
@@ -941,9 +945,9 @@ on_async_load_contents_assert (GObject      *source,
   assert_success_or_free_error (success, error);
   if (success)
     {
-      g_assert_nonnull (contents);
-      g_assert_cmpint (length, >=, strlen (contents));
-      g_assert_nonnull (etag);
+      gt_expect_string (contents, NOT TO_BE_NULL);
+      gt_expect_int (length, NOT TO_BE_LESS_THAN, strlen (contents));
+      gt_expect_string (etag, NOT TO_BE_NULL);
       g_free (contents);
       g_free (etag);
     }
@@ -971,8 +975,8 @@ on_async_load_contents_assert_cancelled (GObject      *source,
                                                   &contents, NULL, NULL, /* out params */
                                                   &error);
   g_free (contents);
-  g_assert_false (success);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_bool (success, TO_BE_FALSE);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_error_free (error);
   g_main_loop_quit (fixture->mainloop);
 }
@@ -992,8 +996,8 @@ on_load_partial_contents_read_all (const char *file_contents,
                                    goffset     file_size,
                                    gpointer    user_data)
 {
-  g_assert_nonnull (file_contents);
-  g_assert_cmpint (file_size, >=, strlen (file_contents));
+  gt_expect_string (file_contents, NOT TO_BE_NULL);
+  gt_expect_int (file_size, NOT TO_BE_LESS_THAN, strlen (file_contents));
   return TRUE;
 }
 
@@ -1012,8 +1016,8 @@ on_load_partial_contents_read_some (const char *file_contents,
                                     goffset     file_size,
                                     gpointer    user_data)
 {
-  g_assert_nonnull (file_contents);
-  g_assert_cmpint (file_size, >=, strlen (file_contents));
+  gt_expect_string (file_contents, NOT TO_BE_NULL);
+  gt_expect_int (file_size, NOT TO_BE_LESS_THAN, strlen (file_contents));
   return FALSE;
 }
 
@@ -1050,7 +1054,7 @@ test_replace_contents (Fixture      *fixture,
   assert_success_or_free_error (success, error);
   if (success)
     {
-      g_assert_nonnull (etag);
+      gt_expect_string (etag, NOT TO_BE_NULL);
       g_free (etag);
     }
 }
@@ -1068,7 +1072,7 @@ on_async_replace_contents_assert (GObject      *source,
   assert_success_or_free_error (success, error);
   if (success)
     {
-      g_assert_nonnull (etag);
+      gt_expect_string (etag, NOT TO_BE_NULL);
       g_free (etag);
     }
   g_main_loop_quit (fixture->mainloop);
@@ -1095,8 +1099,8 @@ on_async_replace_contents_assert_cancelled (GObject      *source,
   gboolean success = g_file_replace_contents_finish (fixture->file, res,
                                                      NULL, /* out param */
                                                      &error);
-  g_assert_false (success);
-  g_assert (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED));
+  gt_expect_bool (success, TO_BE_FALSE);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   g_error_free (error);
   g_main_loop_quit (fixture->mainloop);
 }
@@ -1170,7 +1174,7 @@ test_new_for_uri (Fixture      *fixture,
   char *uri = g_file_get_uri (fixture->file);
   GFile *new_file = g_file_new_for_uri (uri);
   g_free (uri);
-  g_assert (g_file_equal (fixture->file, new_file));
+  gt_expect_file (fixture->file, TO_EQUAL, new_file);
   g_object_unref (new_file);
 }
 
@@ -1181,7 +1185,7 @@ test_parse_name (Fixture      *fixture,
   char *parse_name = g_file_get_parse_name (fixture->file);
   GFile *new_file = g_file_parse_name (parse_name);
   g_free (parse_name);
-  g_assert (g_file_equal (fixture->file, new_file));
+  gt_expect_file (fixture->file, TO_EQUAL, new_file);
   g_object_unref (new_file);
 }
 
@@ -1192,7 +1196,7 @@ test_child_parent (Fixture      *fixture,
   GFile *child = g_file_get_child (fixture->file, "foobar");
   GFile *new_file = g_file_get_parent (child);
   g_object_unref (child);
-  g_assert (g_file_equal (fixture->file, new_file));
+  gt_expect_file (fixture->file, TO_EQUAL, new_file);
   g_object_unref (new_file);
 }
 
@@ -1202,7 +1206,7 @@ test_file_exists_if_created_as_such (void)
   GFile *file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE,
                                       "exists", TRUE,
                                       NULL));
-  g_assert_true (g_file_query_exists (file, NULL));
+  gt_expect_file (file, TO_EXIST);
   g_object_unref (file);
 }
 
@@ -1210,7 +1214,7 @@ static void
 test_file_does_not_exist_if_not_created_as_such (Fixture      *fixture,
                                                  gconstpointer unused)
 {
-  g_assert_false (g_file_query_exists (fixture->file, NULL));
+  gt_expect_file (fixture->file, NOT TO_EXIST);
 }
 
 static void
@@ -1220,19 +1224,19 @@ test_file_create (Fixture      *fixture,
   GError *error = NULL;
   GFileOutputStream *stream = g_file_create (fixture->file, G_FILE_CREATE_NONE,
                                              NULL, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (stream);
+  gt_expect_error (error, TO_BE_CLEAR);
+  gt_expect_object (stream, NOT TO_BE_NULL);
 
   int length = strlen (SAMPLE_UTF8_CONTENTS);
   ssize_t written = g_output_stream_write (G_OUTPUT_STREAM (stream),
                                            SAMPLE_UTF8_CONTENTS, length,
                                            NULL, &error);
   g_object_unref (stream);
-  g_assert_no_error (error);
-  g_assert_cmpint (written, ==, length);
+  gt_expect_error (error, TO_BE_CLEAR);
+  gt_expect_int (written, TO_EQUAL, length);
 
   const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (fixture->file));
-  g_assert_cmpstr (contents, ==, SAMPLE_UTF8_CONTENTS);
+  gt_expect_string (contents, TO_EQUAL, SAMPLE_UTF8_CONTENTS);
 }
 
 static void
@@ -1245,8 +1249,8 @@ test_file_create_fails_if_file_exists (void)
   GError *error = NULL;
   GFileOutputStream *stream = g_file_create (file, G_FILE_CREATE_NONE, NULL,
                                              &error);
-  g_assert_null (stream);
-  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_EXISTS);
+  gt_expect_object (stream, TO_BE_NULL);
+  gt_expect_error (error, TO_MATCH, G_IO_ERROR, G_IO_ERROR_EXISTS);
 
   g_error_free (error);
 

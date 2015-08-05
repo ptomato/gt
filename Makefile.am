@@ -1,7 +1,7 @@
 ## Definitions
 ## -----------
 ACLOCAL_AMFLAGS = -I m4
-AM_CFLAGS = @GT_CFLAGS@
+AM_CFLAGS = @GT_CFLAGS@ -I src
 AM_LDFLAGS = @GT_LIBS@
 
 EXTRA_DIST =
@@ -20,6 +20,7 @@ GITIGNOREFILES = doc
 ## -----------
 lib_LTLIBRARIES = libgt-@GT_API_VERSION@.la
 libgt_@GT_API_VERSION@_la_SOURCES = \
+	src/expect.vala \
 	src/mockfileinputstream.vala \
 	src/mockfileoutputstream.vala \
 	src/mockfile.vala \
@@ -104,11 +105,15 @@ uninstall-hook:
 ## Tests
 ## -----
 noinst_PROGRAMS = \
+	test-cexpect \
 	test-mockfile \
 	test-gfileapi \
 	test-wait \
 	$(NULL)
 TEST_LINKER_FLAGS = libgt-@GT_API_VERSION@.la $(AM_LDFLAGS)
+
+test_cexpect_SOURCES = test/cexpect.c gt.h
+test_cexpect_LDFLAGS = $(TEST_LINKER_FLAGS)
 
 test_mockfile_SOURCES = test/mockfile.c gt.h
 test_mockfile_LDFLAGS = $(TEST_LINKER_FLAGS)
@@ -120,6 +125,7 @@ test_wait_SOURCES = test/wait.c gt.h
 test_wait_LDFLAGS = $(TEST_LINKER_FLAGS)
 
 TESTS = \
+	test-cexpect \
 	test-mockfile \
 	test-gfileapi \
 	test-wait \

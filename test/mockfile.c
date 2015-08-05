@@ -19,6 +19,7 @@
 #include <gio/gio.h>
 
 #include "gt.h"
+#include "gt-expect.h"
 
 #define SAMPLE_UTF8_CONTENTS "My big sphinx of quartz"
 
@@ -46,7 +47,7 @@ test_g_object_new (void)
 {
   GFile *file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE, NULL));
   char *uri = g_file_get_uri (file);
-  g_assert_true (g_regex_match_simple ("^gt-mock://[a-f0-9]{32}$", uri, 0, 0));
+  gt_expect_string (uri, TO_MATCH, "^gt-mock://[a-f0-9]{32}$");
   g_free (uri);
 }
 
@@ -55,7 +56,7 @@ test_new_with_id (void)
 {
   GFile *file = G_FILE (gt_mock_file_new_with_id ("0123456789abcdef0123456789abcdef"));
   char *uri = g_file_get_uri (file);
-  g_assert_cmpstr(uri, ==, "gt-mock://0123456789abcdef0123456789abcdef");
+  gt_expect_string (uri, TO_EQUAL, "gt-mock://0123456789abcdef0123456789abcdef");
   g_free (uri);
 }
 
@@ -63,7 +64,7 @@ static void
 test_mock_does_not_prevent_creating_normal_files_from_path (void)
 {
   GFile *file = g_file_new_for_path ("a/b/c");
-  g_assert_false (GT_IS_MOCK_FILE (file));
+  gt_expect_object (file, NOT TO_BE_A, GT_TYPE_MOCK_FILE);
   g_object_unref (file);
 }
 
@@ -71,7 +72,7 @@ static void
 test_mock_does_not_prevent_creating_normal_files_from_uri (void)
 {
   GFile *file = g_file_new_for_uri ("file:///a/b/c");
-  g_assert_false (GT_IS_MOCK_FILE (file));
+  gt_expect_object (file, NOT TO_BE_A, GT_TYPE_MOCK_FILE);
   g_object_unref (file);
 }
 
@@ -83,7 +84,7 @@ test_mock_does_not_prevent_parsing_normal_files_names (void)
   g_object_unref (file);
   file = g_file_parse_name (parse_name);
   g_free (parse_name);
-  g_assert_false (GT_IS_MOCK_FILE (file));
+  gt_expect_object (file, NOT TO_BE_A, GT_TYPE_MOCK_FILE);
   g_object_unref (file);
 }
 
@@ -91,14 +92,14 @@ static void
 test_mock_is_not_native (Fixture      *fixture,
                          gconstpointer unused)
 {
-  g_assert_false (g_file_is_native (fixture->file));
+  gt_expect_bool (g_file_is_native (fixture->file), TO_BE_FALSE);
 }
 
 static void
 test_mock_has_uri_scheme (Fixture      *fixture,
                           gconstpointer unused)
 {
-  g_assert (g_file_has_uri_scheme (fixture->file, "gt-mock"));
+  gt_expect_bool (g_file_has_uri_scheme (fixture->file, "gt-mock"), TO_BE_TRUE);
 }
 
 static void
@@ -106,7 +107,7 @@ test_mock_get_uri_scheme (Fixture      *fixture,
                           gconstpointer unused)
 {
   char *scheme = g_file_get_uri_scheme (fixture->file);
-  g_assert_cmpstr (scheme, ==, "gt-mock");
+  gt_expect_string (scheme, TO_EQUAL, "gt-mock");
   g_free (scheme);
 }
 
@@ -114,8 +115,9 @@ static void
 test_mock_exists_by_default (Fixture      *fixture,
                              gconstpointer unused)
 {
-  g_assert_true (gt_mock_file_get_exists (GT_MOCK_FILE (fixture->file)));
-  g_assert_true (g_file_query_exists (fixture->file, NULL));
+  gt_expect_bool (gt_mock_file_get_exists (GT_MOCK_FILE (fixture->file)),
+                  TO_BE_TRUE);
+  gt_expect_file (fixture->file, TO_EXIST);
 }
 
 static void
@@ -123,7 +125,7 @@ test_mock_is_regular_file (Fixture      *fixture,
                            gconstpointer unused)
 {
   GFileType file_type = g_file_query_file_type (fixture->file, G_FILE_QUERY_INFO_NONE, NULL);
-  g_assert_cmpuint (file_type, ==, G_FILE_TYPE_REGULAR);
+  gt_expect_uint (file_type, TO_EQUAL, G_FILE_TYPE_REGULAR);
 }
 
 static void
@@ -131,10 +133,10 @@ test_mock_starts_empty (Fixture      *fixture,
                         gconstpointer unused)
 {
   GBytes *bytes = gt_mock_file_get_contents (GT_MOCK_FILE (fixture->file));
-  g_assert_cmpuint(g_bytes_get_size (bytes), ==, 0);
+  gt_expect_uint (g_bytes_get_size (bytes), TO_EQUAL, 0);
 
   const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (fixture->file));
-  g_assert_cmpstr (contents, ==, "");
+  gt_expect_string (contents, TO_EQUAL, "");
 }
 
 static void
@@ -153,9 +155,9 @@ test_mock_stores_contents (Fixture      *fixture,
   contents = gt_mock_file_get_contents (GT_MOCK_FILE (fixture->file));
   data = g_bytes_get_data (contents, &size);
 
-  g_assert_cmpint (size, ==, 6);
+  gt_expect_int (size, TO_EQUAL, 6);
   for (index = 0; index < 6; index++)
-    g_assert_cmpuint (data[index], ==, index);
+    gt_expect_uint (data[index], TO_EQUAL, index);
 }
 
 static void
@@ -165,7 +167,7 @@ test_mock_stores_contents_utf8 (Fixture      *fixture,
   gt_mock_file_set_contents_utf8 (GT_MOCK_FILE (fixture->file),
                                   SAMPLE_UTF8_CONTENTS);
   const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (fixture->file));
-  g_assert_cmpstr (contents, ==, SAMPLE_UTF8_CONTENTS);
+  gt_expect_string (contents, TO_EQUAL, SAMPLE_UTF8_CONTENTS);
 }
 
 static void
@@ -176,17 +178,17 @@ test_mock_reads_contents (Fixture      *fixture,
   gt_mock_file_set_contents_utf8 (GT_MOCK_FILE (fixture->file),
                                   SAMPLE_UTF8_CONTENTS);
   GFileInputStream *istream = g_file_read (fixture->file, NULL, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (istream);
+  gt_expect_error (error, TO_BE_CLEAR);
+  gt_expect_object (istream, NOT TO_BE_NULL);
 
   GDataInputStream *dis = g_data_input_stream_new (G_INPUT_STREAM (istream));
   g_object_unref (istream);
   char *contents = g_data_input_stream_read_line_utf8 (dis, NULL, NULL, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (contents);
+  gt_expect_error (error, TO_BE_CLEAR);
+  gt_expect_string (contents, NOT TO_BE_NULL);
   g_object_unref (dis);
 
-  g_assert_cmpstr(contents, ==, SAMPLE_UTF8_CONTENTS);
+  gt_expect_string (contents, TO_EQUAL, SAMPLE_UTF8_CONTENTS);
   g_free (contents);
 }
 
@@ -199,18 +201,19 @@ test_mock_writes_contents (void)
   GError *error = NULL;
   GFileOutputStream *ostream = g_file_create (file, G_FILE_CREATE_NONE, NULL,
                                               &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (ostream);
+  gt_expect_error (error, TO_BE_CLEAR);
+  gt_expect_object (ostream, NOT TO_BE_NULL);
 
   GDataOutputStream *dos = g_data_output_stream_new (G_OUTPUT_STREAM (ostream));
   g_object_unref (ostream);
-  g_assert (g_data_output_stream_put_string (dos, SAMPLE_UTF8_CONTENTS,
-                                             NULL, &error));
-  g_assert_no_error (error);
+  gboolean success = g_data_output_stream_put_string (dos, SAMPLE_UTF8_CONTENTS,
+                                                      NULL, &error);
+  gt_expect_bool (success, TO_BE_TRUE);
+  gt_expect_error (error, TO_BE_CLEAR);
   g_object_unref (dos);
 
   const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (file));
-  g_assert_cmpstr (contents, ==, SAMPLE_UTF8_CONTENTS);
+  gt_expect_string (contents, TO_EQUAL, SAMPLE_UTF8_CONTENTS);
 
   g_object_unref (file);
 }

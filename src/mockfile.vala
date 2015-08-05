@@ -53,7 +53,7 @@ namespace Gt {
  * {
  *     gt_mock_file_set_contents_utf8 (fixture->file, "owl owl owl owl owl");
  *     int owls = count_owls (fixture->file);
- *     g_assert_cmpint (owls, ==, 5);
+ *     gt_expect_int (owls, TO_EQUAL, 5);
  * }
  *
  * void
