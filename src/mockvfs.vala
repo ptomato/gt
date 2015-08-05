@@ -16,8 +16,7 @@
  * Gt. If not, see <http://www.gnu.org/licenses/>.
  */
 
-namespace Gt {
-public class MockVfs : Vfs {
+internal class MockVfs : Vfs {
     private static const string URI_SCHEME = "gt-mock";
 
     public override bool is_active() {
@@ -25,7 +24,7 @@ public class MockVfs : Vfs {
     }
 
     public override File get_file_for_path(string path) {
-        return new MockFile() as File;
+        return new Gt.MockFile() as File;
     }
 
     public override File get_file_for_uri(string uri) {
@@ -33,7 +32,7 @@ public class MockVfs : Vfs {
         if ("#" in id)
             id = id[id.index_of_char('#'):id.length];
 
-        return new MockFile.with_id(id);
+        return new Gt.MockFile.with_id(id);
     }
 
     public override File parse_name(string name) {
@@ -46,4 +45,3 @@ public class MockVfs : Vfs {
         return uri_schemes;
     }
 }
-}  // namespace Gt

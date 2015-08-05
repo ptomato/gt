@@ -19,7 +19,7 @@
 // The funny namespace is because these functions must be called g_io_module_*
 namespace G.Io {
 public static void module_load(IOModule module) {
-    IOExtensionPoint.implement(IOExtensionPoint.VFS, typeof(Gt.MockVfs), "mock", 10);
+    IOExtensionPoint.implement(IOExtensionPoint.VFS, typeof(MockVfs), "mock", 10);
 }
 
 public static void module_unload(IOModule module) {

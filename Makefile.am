@@ -23,7 +23,6 @@ libgt_@GT_API_VERSION@_la_SOURCES = \
 	src/mockfileinputstream.vala \
 	src/mockfileoutputstream.vala \
 	src/mockfile.vala \
-	src/mockvfs.vala \
 	src/wait.vala \
 	$(NULL)
 libgt_@GT_API_VERSION@_la_VALAFLAGS = \
@@ -39,7 +38,10 @@ CLEANFILES += gt.h gt-@GT_API_VERSION@.vapi
 
 giomoduledir = $(GIO_MODULE_DIR)
 giomodule_LTLIBRARIES = libgtmodule-@GT_API_VERSION@.la
-libgtmodule_@GT_API_VERSION@_la_SOURCES = src/module.vala
+libgtmodule_@GT_API_VERSION@_la_SOURCES = \
+	src/module.vala \
+	src/mockvfs.vala \
+	$(NULL)
 libgtmodule_@GT_API_VERSION@_la_VALAFLAGS = \
 	@GT_PACKAGES@ \
 	--vapidir $(builddir) --pkg gt-@GT_API_VERSION@ \
