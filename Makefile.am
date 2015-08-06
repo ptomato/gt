@@ -24,6 +24,7 @@ libgt_@GT_API_VERSION@_la_SOURCES = \
 	src/mockfileoutputstream.vala \
 	src/mockfile.vala \
 	src/mockvfs.vala \
+	src/wait.vala \
 	$(NULL)
 libgt_@GT_API_VERSION@_la_VALAFLAGS = \
 	@GT_PACKAGES@ \
@@ -105,6 +106,7 @@ uninstall-hook:
 noinst_PROGRAMS = \
 	test-mockfile \
 	test-gfileapi \
+	test-wait \
 	$(NULL)
 TEST_LINKER_FLAGS = libgt-@GT_API_VERSION@.la $(AM_LDFLAGS)
 
@@ -114,9 +116,13 @@ test_mockfile_LDFLAGS = $(TEST_LINKER_FLAGS)
 test_gfileapi_SOURCES = test/gfileapi.c gt.h
 test_gfileapi_LDFLAGS = $(TEST_LINKER_FLAGS)
 
+test_wait_SOURCES = test/wait.c gt.h
+test_wait_LDFLAGS = $(TEST_LINKER_FLAGS)
+
 TESTS = \
 	test-mockfile \
 	test-gfileapi \
+	test-wait \
 	$(NULL)
 LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) $(top_srcdir)/tap-driver.sh
 LOG_DRIVER_FLAGS = --comments
