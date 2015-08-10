@@ -40,7 +40,7 @@ typedef struct
 
 typedef struct
 {
-  unsigned timer;
+  GSource *timer;
 } GtChangerPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE(GtChanger, gt_changer, G_TYPE_OBJECT);
@@ -67,9 +67,12 @@ static void
 gt_changer_stop (GtChanger *self)
 {
   GtChangerPrivate *priv = gt_changer_get_instance_private (self);
-  if (priv->timer != 0)
-    g_source_remove (priv->timer);
-  priv->timer = 0;
+  if (priv->timer != NULL)
+    {
+      g_source_destroy (priv->timer);
+      g_source_unref (priv->timer);
+      priv->timer = NULL;
+    }
 }
 
 static void
@@ -77,18 +80,18 @@ gt_changer_start (GtChanger *self)
 {
   GtChangerPrivate *priv = gt_changer_get_instance_private (self);
   gt_changer_stop (self);
-  priv->timer = g_timeout_add (100, (GSourceFunc) tick, self);
+  priv->timer = g_timeout_source_new (100);
+  g_source_set_callback (priv->timer, (GSourceFunc) tick, self, NULL);
+  g_source_attach (priv->timer, g_main_context_get_thread_default ());
 }
 
 static gboolean
 increment_later (GTask *task)
 {
   GtChanger *self = g_task_get_source_object (task);
-  GtChangerPrivate *priv = gt_changer_get_instance_private (self);
   self->count++;
   g_object_notify (G_OBJECT (self), "count");
   g_task_return_boolean (task, TRUE);
-  priv->timer = 0;  /* will be removed by the return value of this function */
   return G_SOURCE_REMOVE;
 }
 
@@ -109,7 +112,9 @@ gt_changer_increment (GtChanger          *self,
   GtChangerPrivate *priv = gt_changer_get_instance_private (self);
   gt_changer_stop (self);
   GTask *task = g_task_new (self, cancellable, callback, data);
-  priv->timer = g_timeout_add (100, (GSourceFunc) increment_later, task);
+  priv->timer = g_timeout_source_new (100);
+  g_source_set_callback (priv->timer, (GSourceFunc) increment_later, task, NULL);
+  g_source_attach (priv->timer, g_main_context_get_thread_default ());
 
   if (cancellable != NULL)
     g_cancellable_connect (cancellable, G_CALLBACK (on_cancelled), task, NULL);
@@ -207,12 +212,19 @@ teardown (Fixture      *fixture,
 /* Tests */
 
 static void
+start_changer_sync (GtChanger *changer)
+{
+  gt_changer_start (changer);
+}
+
+static void
 test_wait_signal_normal (Fixture      *fixture,
                          gconstpointer unused)
 {
-  gt_changer_start (fixture->changer);
   g_assert_true (gt_wait_for_signal (500, G_OBJECT (fixture->changer),
-                                     "notify::count", NULL, NULL));
+                                     "notify::count",
+                                     (GtBlock) start_changer_sync,
+                                     fixture->changer));
   g_assert_cmpuint (fixture->changer->count, ==, 1);
 }
 
@@ -251,11 +263,12 @@ static void
 test_wait_condition_normal (Fixture      *fixture,
                             gconstpointer unused)
 {
-  gt_changer_start (fixture->changer);
   g_assert_true (gt_wait_for_condition (300, G_OBJECT (fixture->changer),
                                         "notify::count",
                                         (GtPredicate) count_is_2,
-                                        fixture->changer, NULL, NULL, NULL));
+                                        fixture->changer, NULL,
+                                        (GtBlock) start_changer_sync,
+                                        fixture->changer));
   g_assert_cmpuint (fixture->changer->count, ==, 2);
 }
 
@@ -284,7 +297,9 @@ test_wait_condition_fail (Fixture      *fixture,
   g_assert_false (gt_wait_for_condition (150, G_OBJECT (fixture->changer),
                                          "notify::count",
                                          (GtPredicate) count_is_2,
-                                         fixture->changer, NULL, NULL, NULL));
+                                         fixture->changer, NULL,
+                                         (GtBlock) start_changer_sync,
+                                         fixture->changer));
   g_assert_cmpuint (fixture->changer->count, ==, 1);
 }
 
@@ -322,10 +337,6 @@ test_wait_async_fail (Fixture      *fixture,
                                      fixture->changer,
                                      (GtAsyncFinish) finish_changer_async,
                                      fixture));
-  // FIXME If it times out, the async function may run to completion when main
-  // loop is entered again later.
-  gt_changer_stop (fixture->changer);
-
   g_assert_cmpuint (fixture->changer->count, ==, 0);
 }
 
@@ -362,6 +373,66 @@ test_wait_cancellable_async_fail (Fixture      *fixture,
   g_assert_cmpuint (fixture->changer->count, ==, 0);
 }
 
+static void
+do_not_finish_changer_async (GAsyncResult *result,
+                             Fixture      *fixture)
+{
+  gt_changer_increment_finish (fixture->changer, result, NULL);
+  g_test_fail ();
+  /* This should not be called, because the operation should be cancelled */
+}
+
+static void
+test_wait_async_does_not_continue_after_finish (Fixture      *fixture,
+                                                gconstpointer unused)
+{
+  g_assert_false (gt_wait_for_async (10, (GtAsyncBegin) start_changer_async,
+                                     fixture->changer,
+                                     (GtAsyncFinish) do_not_finish_changer_async,
+                                     fixture));
+
+  teardown (fixture, unused);
+  setup (fixture, unused);
+  /* Running the main loop again should not cause the old changer's callback to
+  be called */
+  g_assert_true (gt_wait_for_async (150, (GtAsyncBegin) start_changer_async,
+                                    fixture->changer,
+                                    (GtAsyncFinish) finish_changer_async,
+                                    fixture));
+}
+
+static void
+start_changer_no_cancel_async (GCancellable       *cancellable,
+                               GAsyncReadyCallback callback,
+                               gpointer            callback_data,
+                               GtChanger          *changer)
+{
+  gt_changer_increment (changer, NULL, callback, callback_data);
+}
+
+static void
+test_wait_async_does_not_continue_after_finish_when_cancelled (Fixture      *fixture,
+                                                               gconstpointer unused)
+{
+  /* Note: the begin function is start_changer_no_cancel_async() here, not
+  start_changer_cancellable_async(), because we want the cancellation to fail
+  in order to trigger this bug. */
+  g_assert_false (gt_wait_for_cancellable_async (10,
+                                                 (GtCancellableAsyncBegin) start_changer_no_cancel_async,
+                                                 fixture->changer,
+                                                 (GtAsyncFinish) do_not_finish_changer_async,
+                                                 fixture));
+
+  teardown (fixture, unused);
+  setup (fixture, unused);
+  /* Running the main loop again should not cause the old changer's callback to
+  be called */
+  g_assert_true (gt_wait_for_async (150, (GtAsyncBegin) start_changer_async,
+                                    fixture->changer,
+                                    (GtAsyncFinish) finish_changer_async,
+                                    fixture));
+}
+
 int
 main (int    argc,
       char **argv)
@@ -381,6 +452,10 @@ main (int    argc,
   ADD_WAIT_TEST ("/wait/async/fail", test_wait_async_fail);
   ADD_WAIT_TEST ("/wait/async/cancellable-normal", test_wait_cancellable_async_normal);
   ADD_WAIT_TEST ("/wait/async/cancellable-fail", test_wait_cancellable_async_fail);
+  ADD_WAIT_TEST ("/wait/async/does-not-continue-after-finish",
+                 test_wait_async_does_not_continue_after_finish);
+  ADD_WAIT_TEST ("/wait/async/does-not-continue-after-finish-when-cancelled",
+                 test_wait_async_does_not_continue_after_finish_when_cancelled);
 
 #undef ADD_WAIT_TEST
 

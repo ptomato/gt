@@ -28,12 +28,15 @@ public delegate void CancellableAsyncBegin(Cancellable cancel,
 public delegate void AsyncFinish(AsyncResult result);
 
 private class SignalWaiter {
-    public MainLoop loop = new MainLoop(MainContext.default(), true);
+    private MainContext context;
+    public MainLoop loop;
     public bool succeeded = false;
     public unowned Predicate predicate;
 
-    public SignalWaiter(Predicate predicate) {
+    public SignalWaiter(MainContext context, Predicate predicate) {
+        this.context = context;
         this.predicate = predicate;
+        loop = new MainLoop(context, true);
     }
 
     public int callback() {
@@ -48,6 +51,17 @@ private class SignalWaiter {
         loop.quit();
         return false;
     }
+}
+
+private static Source custom_context_add_timeout(MainContext context,
+    uint interval, owned SourceFunc function, int priority = Priority.DEFAULT)
+{
+    var source = new TimeoutSource(interval);
+    if (priority != Priority.DEFAULT)
+        source.set_priority(priority);
+    source.set_callback(function);
+    source.attach(context);
+    return source;
 }
 
 /**
@@ -74,10 +88,10 @@ private class SignalWaiter {
 public bool wait_for_condition(int timeout, Object emitter, string signame,
     owned Predicate predicate, Block? block)
 {
-    // FIXME: The fixture should push a new context in set_up and pop it back on
-    // clean-up! (But it's GLib 2.21.0+ and I still have 2.20.4)
+    var context = new MainContext();
+    context.push_thread_default();
 
-    var waiter = new SignalWaiter(predicate);
+    var waiter = new SignalWaiter(context, predicate);
     var sh = Signal.connect_swapped(emitter, signame,
         (Callback) SignalWaiter.callback, waiter);
 
@@ -87,15 +101,15 @@ public bool wait_for_condition(int timeout, Object emitter, string signame,
     // Check whether the condition is not true already
     waiter.callback();
     // Plan timeout
-    var t1 = Timeout.add(timeout, waiter.abort);
+    var t1 = custom_context_add_timeout(context, timeout, waiter.abort);
     // Run the loop if it was not quit yet.
     if(waiter.loop.is_running())
         waiter.loop.run();
 
     SignalHandler.disconnect(emitter, sh);
-    // Cancel timer unless it aborted the operation
-    if (waiter.succeeded)
-        Source.remove(t1);
+    t1.destroy();
+
+    context.pop_thread_default();
     return waiter.succeeded;
 }
 
@@ -134,13 +148,6 @@ public bool wait_for_signal(int timeout, Object emitter, string signame,
  *
  * Waits until a async function completes.
  *
- * Warning: If it times out, the async function may run to completion when main
- * loop is entered again later.
- * By that time, the callback data will be destroyed and the callback will crash.
- *
- * This should be avoided by setting new GLib.MainContext for each test case,
- * but that is only available in development 2.21 GLib.
- *
  * @param timeout Maximum timeout to wait for completion, in milliseconds.
  * @param async_function The async function to call.
  * The signature corresponds to function declared as
@@ -156,7 +163,10 @@ public bool wait_for_signal(int timeout, Object emitter, string signame,
 public bool wait_for_async(int timeout, AsyncBegin async_function,
     AsyncFinish async_finish)
 {
-    var loop = new MainLoop(MainContext.default(), true);
+    var context = new MainContext();
+    context.push_thread_default();
+    var loop = new MainLoop(context, true);
+
     AsyncResult? result = null;
     // Plan the async function
     async_function((o, r) => {
@@ -164,19 +174,23 @@ public bool wait_for_async(int timeout, AsyncBegin async_function,
         loop.quit();
     });
     // Plan timeout
-    var t1 = Timeout.add(timeout, () => {
+    var t1 = custom_context_add_timeout(context, timeout, () => {
         loop.quit();
         return false;
     });
     // Run the loop if it was not quit yet.
     if (loop.is_running())
         loop.run();
+    t1.destroy();
+
     // Check the outcome
-    if (result == null)
+    if (result == null) {
+        context.pop_thread_default();
         return false;
-    else
-        Source.remove(t1);
+    }
     async_finish(result);
+
+    context.pop_thread_default();
     return true;
 }
 
@@ -187,13 +201,6 @@ public bool wait_for_async(int timeout, AsyncBegin async_function,
  * If it does not complete in time, it cancels the operation and waits once more
  * the same timeout for the cancellation (it still fails if the cancellation
  * succeeds).
- *
- * Warning: If the cancel fails and it times out second time, the async function
- * may run to completion when main loop is entered again later.
- * By that time, the callback data will be destroyed and the callback will crash.
- *
- * This should be avoided by setting new GLib.MainContext for each test case,
- * but that is only available in development 2.21 GLib.
  *
  * @param timeout Maximum timeout to wait for completion, in milliseconds.
  * @param async_function The async function to call.
@@ -211,7 +218,10 @@ public bool wait_for_async(int timeout, AsyncBegin async_function,
 public bool wait_for_cancellable_async(int timeout,
     CancellableAsyncBegin async_function, AsyncFinish async_finish)
 {
-    var loop = new MainLoop(MainContext.default(), true);
+    var context = new MainContext();
+    context.push_thread_default();
+    var loop = new MainLoop(context, true);
+
     AsyncResult? result = null;
     var cancel = new Cancellable();
     // Plan the async function
@@ -220,28 +230,30 @@ public bool wait_for_cancellable_async(int timeout,
         loop.quit();
     });
     // Plan timeouts
-    var t1 = Timeout.add(timeout, () => {
+    var t1 = custom_context_add_timeout(context, timeout, () => {
         cancel.cancel();
         return false;
     });
-    var t2 = Timeout.add(2 * timeout, () => {
+    var t2 = custom_context_add_timeout(context, 2 * timeout, () => {
         loop.quit();
         return false;
     });
     // Run the loop if it was not quit yet.
     if(loop.is_running())
         loop.run();
+    t2.destroy();
+    t1.destroy();
 
     // Check the outcome
-    if (result == null)
-        return false; // The async wasn't called at all.
-    else
-        Source.remove(t2);
-    if (cancel.is_cancelled()) // Only succeed if not cancelled
+    if (result == null || cancel.is_cancelled()) {
+        // Either the async wasn't called at all (result == null) or it was
+        // cancelled. In either case the wait fails.
+        context.pop_thread_default();
         return false;
-    else
-        Source.remove(t1);
+    }
     async_finish(result);
+
+    context.pop_thread_default();
     return true;
 }
 }  // namespace Gt
