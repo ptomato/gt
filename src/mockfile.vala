@@ -20,7 +20,7 @@ namespace Gt {
 /**
  * Mock file object for tests
  *
- * GIO provides a mock file object for use in [test cases][glib-Testing].
+ * GT provides a mock file object for use in GLib's [test cases][glib-Testing].
  * Use this when writing unit tests for GObject code that reads or writes files.
  * Using a mock file object allows you to test your file-accessing code against
  * a lightweight, in-memory file, rather than painstakingly setting up and
@@ -45,13 +45,13 @@ namespace Gt {
  * void
  * setup (Fixture *fixture, gconstpointer data)
  * {
- *     fixture->file = g_mock_file_new ();
+ *     fixture->file = gt_mock_file_new ();
  * }
  *
  * void
  * test_count_owls (Fixture *fixture, gconstpointer data)
  * {
- *     g_mock_file_set_contents_utf8 (fixture->file, "owl owl owl owl owl");
+ *     gt_mock_file_set_contents_utf8 (fixture->file, "owl owl owl owl owl");
  *     int owls = count_owls (fixture->file);
  *     g_assert_cmpint (owls, ==, 5);
  * }
