@@ -25,10 +25,13 @@ public class MockVfs : Vfs {
     }
 
     public override File get_file_for_path(string path) {
-        return new MockFile() as File;
+        return Vfs.get_local().get_file_for_path(path);
     }
 
     public override File get_file_for_uri(string uri) {
+        if (Uri.parse_scheme(uri) != URI_SCHEME)
+            return Vfs.get_local().get_file_for_uri(uri);
+
         var id = uri[(URI_SCHEME + "://").length:uri.length];
         if ("#" in id)
             id = id[id.index_of_char('#'):id.length];
@@ -37,6 +40,8 @@ public class MockVfs : Vfs {
     }
 
     public override File parse_name(string name) {
+        if (Uri.parse_scheme(name) != URI_SCHEME)
+            return Vfs.get_local().parse_name(name);
         return get_file_for_uri(name);
     }
 

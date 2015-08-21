@@ -59,6 +59,34 @@ test_new_with_id (void)
   g_free (uri);
 }
 
+void
+test_mock_does_not_prevent_creating_normal_files_from_path (void)
+{
+  GFile *file = g_file_new_for_path ("a/b/c");
+  g_assert_false (GT_IS_MOCK_FILE (file));
+  g_object_unref (file);
+}
+
+void
+test_mock_does_not_prevent_creating_normal_files_from_uri (void)
+{
+  GFile *file = g_file_new_for_uri ("file:///a/b/c");
+  g_assert_false (GT_IS_MOCK_FILE (file));
+  g_object_unref (file);
+}
+
+void
+test_mock_does_not_prevent_parsing_normal_files_names (void)
+{
+  GFile *file = g_file_new_for_path ("a/b/c");
+  char *parse_name = g_file_get_parse_name (file);
+  g_object_unref (file);
+  file = g_file_parse_name (parse_name);
+  g_free (parse_name);
+  g_assert_false (GT_IS_MOCK_FILE (file));
+  g_object_unref (file);
+}
+
 static void
 test_mock_is_not_native (Fixture      *fixture,
                          gconstpointer unused)
@@ -191,6 +219,12 @@ main (int    argc,
 
   g_test_add_func ("/mock/g-object-new-constructor", test_g_object_new);
   g_test_add_func ("/mock/new-with-id", test_new_with_id);
+  g_test_add_func ("/mock/does-not-prevent-creating-normal-files-from-path",
+                   test_mock_does_not_prevent_creating_normal_files_from_path);
+  g_test_add_func ("/mock/does-not-prevent-creating-normal-files-from-uri",
+                   test_mock_does_not_prevent_creating_normal_files_from_uri);
+  g_test_add_func ("/mock/does-not-prevent-parsing-normal-files-names",
+                   test_mock_does_not_prevent_parsing_normal_files_names);
 
 #define ADD_MOCK_FILE_TEST(path, test_func) \
   g_test_add ((path), Fixture, NULL, setup, (test_func), teardown)
