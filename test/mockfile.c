@@ -41,7 +41,7 @@ teardown (Fixture      *fixture,
   g_object_unref (fixture->file);
 }
 
-void
+static void
 test_g_object_new (void)
 {
   GFile *file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE, NULL));
@@ -50,7 +50,7 @@ test_g_object_new (void)
   g_free (uri);
 }
 
-void
+static void
 test_new_with_id (void)
 {
   GFile *file = G_FILE (gt_mock_file_new_with_id ("0123456789abcdef0123456789abcdef"));
@@ -59,7 +59,7 @@ test_new_with_id (void)
   g_free (uri);
 }
 
-void
+static void
 test_mock_does_not_prevent_creating_normal_files_from_path (void)
 {
   GFile *file = g_file_new_for_path ("a/b/c");
@@ -67,7 +67,7 @@ test_mock_does_not_prevent_creating_normal_files_from_path (void)
   g_object_unref (file);
 }
 
-void
+static void
 test_mock_does_not_prevent_creating_normal_files_from_uri (void)
 {
   GFile *file = g_file_new_for_uri ("file:///a/b/c");
@@ -75,7 +75,7 @@ test_mock_does_not_prevent_creating_normal_files_from_uri (void)
   g_object_unref (file);
 }
 
-void
+static void
 test_mock_does_not_prevent_parsing_normal_files_names (void)
 {
   GFile *file = g_file_new_for_path ("a/b/c");
