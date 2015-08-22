@@ -68,6 +68,7 @@ public class MockFile : Object, File {
 
     /* Members */
 
+    private bool _exists;
     private string id;
     private string? basename;  // UTF-8, same as display name
     // MockFile keeps references to its parent file and its direct children
@@ -270,8 +271,12 @@ public class MockFile : Object, File {
     }
 
     public FileInfo query_info(string attributes, FileQueryInfoFlags flags,
-        Cancellable? cancellable)
+        Cancellable? cancellable) throws Error
     {
+        if (!exists)
+            throw new IOError.NOT_FOUND("If you want a mock file to exist, " +
+                "create it with its exists property set to true.");
+
         var retval = new FileInfo();
 
         // Make sure we don't set any unwanted attributes
@@ -337,7 +342,10 @@ public class MockFile : Object, File {
         throw new IOError.NOT_SUPPORTED("Deprecated; use read() instead.");
     }
     [CCode(vfunc_name = "read_fn")]
-    public FileInputStream read(Cancellable? cancellable) {
+    public FileInputStream read(Cancellable? cancellable) throws Error {
+        if (!exists)
+            throw new IOError.NOT_FOUND("If you want to read() a mock file, " +
+                "create it with its exists property set to true.");
         var istream = new MemoryInputStream.from_bytes(contents);
         return new MockFileInputStream(this, istream);
     }
@@ -349,9 +357,12 @@ public class MockFile : Object, File {
     }
 
     public FileOutputStream create(FileCreateFlags flags, // ignored
-        Cancellable? cancellable)
+        Cancellable? cancellable) throws Error
     {
-        // FIXME: should we keep track of whether the mock file "exists" or not?
+        if (exists)
+            throw new IOError.EXISTS("If you want to call create() on a mock" +
+                "file, create it with its exists property set to false.");
+        _exists = true;
         var ostream = new MemoryOutputStream.resizable();
         return new MockFileOutputStream(this, ostream);
     }
@@ -567,6 +578,12 @@ public class MockFile : Object, File {
             return (string) bytes.data;
         }
         set { contents = new Bytes(value.data); }
+    }
+
+    public bool exists {
+        get { return _exists; }
+        construct { _exists = value; }
+        default = true;
     }
 }
 }  // namespace Gt

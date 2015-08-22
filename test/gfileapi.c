@@ -44,7 +44,9 @@ static void
 setup (Fixture      *fixture,
        gconstpointer unused)
 {
-  fixture->file = G_FILE (gt_mock_file_new ());
+  fixture->file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE,
+                                        "exists", FALSE,
+                                        NULL));
   fixture->cancellable = g_cancellable_new ();
   fixture->mainloop = g_main_loop_new (NULL, FALSE);
 }
@@ -1195,6 +1197,23 @@ test_child_parent (Fixture      *fixture,
 }
 
 static void
+test_file_exists_if_created_as_such (void)
+{
+  GFile *file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE,
+                                      "exists", TRUE,
+                                      NULL));
+  g_assert_true (g_file_query_exists (file, NULL));
+  g_object_unref (file);
+}
+
+static void
+test_file_does_not_exist_if_not_created_as_such (Fixture      *fixture,
+                                                 gconstpointer unused)
+{
+  g_assert_false (g_file_query_exists (fixture->file, NULL));
+}
+
+static void
 test_file_create (Fixture      *fixture,
                   gconstpointer unused)
 {
@@ -1214,6 +1233,24 @@ test_file_create (Fixture      *fixture,
 
   const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (fixture->file));
   g_assert_cmpstr (contents, ==, SAMPLE_UTF8_CONTENTS);
+}
+
+static void
+test_file_create_fails_if_file_exists (void)
+{
+  GFile *file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE,
+                                      "exists", TRUE,
+                                      NULL));
+
+  GError *error = NULL;
+  GFileOutputStream *stream = g_file_create (file, G_FILE_CREATE_NONE, NULL,
+                                             &error);
+  g_assert_null (stream);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_EXISTS);
+
+  g_error_free (error);
+
+  g_object_unref (file);
 }
 
 int
@@ -1357,7 +1394,13 @@ main (int    argc,
   ADD_MOCK_FILE_TEST ("/round-trip/child-parent", test_child_parent);
 
   /* Tests for supported GFile functionality */
+  g_test_add_func ("/file/exists-if-created-as-such",
+                   test_file_exists_if_created_as_such);
+  ADD_MOCK_FILE_TEST ("/file/does-not-exist-if-not-created-as-such",
+                      test_file_does_not_exist_if_not_created_as_such);
   ADD_MOCK_FILE_TEST ("/file/create", test_file_create);
+  g_test_add_func ("/file/create-fails-if-file-exists",
+                   test_file_create_fails_if_file_exists);
 
 #undef ADD_MOCK_FILE_TEST
 

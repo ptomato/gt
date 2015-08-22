@@ -111,10 +111,11 @@ test_mock_get_uri_scheme (Fixture      *fixture,
 }
 
 static void
-test_mock_exists (Fixture      *fixture,
-                  gconstpointer unused)
+test_mock_exists_by_default (Fixture      *fixture,
+                             gconstpointer unused)
 {
-  g_assert (g_file_query_exists (fixture->file, NULL));
+  g_assert_true (gt_mock_file_get_exists (GT_MOCK_FILE (fixture->file)));
+  g_assert_true (g_file_query_exists (fixture->file, NULL));
 }
 
 static void
@@ -190,12 +191,14 @@ test_mock_reads_contents (Fixture      *fixture,
 }
 
 static void
-test_mock_writes_contents (Fixture      *fixture,
-                           gconstpointer unused)
+test_mock_writes_contents (void)
 {
+  GFile *file = G_FILE (g_object_new (GT_TYPE_MOCK_FILE,
+                                      "exists", FALSE,
+                                      NULL));
   GError *error = NULL;
-  GFileOutputStream *ostream = g_file_create (fixture->file, G_FILE_CREATE_NONE,
-                                              NULL, &error);
+  GFileOutputStream *ostream = g_file_create (file, G_FILE_CREATE_NONE, NULL,
+                                              &error);
   g_assert_no_error (error);
   g_assert_nonnull (ostream);
 
@@ -206,8 +209,10 @@ test_mock_writes_contents (Fixture      *fixture,
   g_assert_no_error (error);
   g_object_unref (dos);
 
-  const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (fixture->file));
+  const char *contents = gt_mock_file_get_contents_utf8 (GT_MOCK_FILE (file));
   g_assert_cmpstr (contents, ==, SAMPLE_UTF8_CONTENTS);
+
+  g_object_unref (file);
 }
 
 
@@ -233,15 +238,16 @@ main (int    argc,
   ADD_MOCK_FILE_TEST ("/mock/is-not-native", test_mock_is_not_native);
   ADD_MOCK_FILE_TEST ("/mock/has-uri-scheme", test_mock_has_uri_scheme);
   ADD_MOCK_FILE_TEST ("/mock/get-uri-scheme", test_mock_get_uri_scheme);
-  ADD_MOCK_FILE_TEST ("/mock/exists", test_mock_exists);
+  ADD_MOCK_FILE_TEST ("/mock/exists-by-default", test_mock_exists_by_default);
   ADD_MOCK_FILE_TEST ("/mock/is-regular-file", test_mock_is_regular_file);
   ADD_MOCK_FILE_TEST ("/mock/starts-empty", test_mock_starts_empty);
   ADD_MOCK_FILE_TEST ("/mock/stores-contents", test_mock_stores_contents);
   ADD_MOCK_FILE_TEST ("/mock/stores-contents-utf8", test_mock_stores_contents_utf8);
   ADD_MOCK_FILE_TEST ("/mock/reads-contents", test_mock_reads_contents);
-  ADD_MOCK_FILE_TEST ("/mock/writes-contents", test_mock_writes_contents);
 
 #undef ADD_MOCK_FILE_TEST
+
+  g_test_add_func ("/mock/writes-contents", test_mock_writes_contents);
 
   return g_test_run ();
 }
